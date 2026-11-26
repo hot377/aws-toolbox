@@ -1,0 +1,48 @@
+# ---- Terraform ----
+# .terraform.lock.hcl はプロバイダーのバージョン固定のためコミットする(除外しない)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+*.tfplan
+tfplan
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ---- エディタ ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# ---- 環境変数・認証情報 ----
+.env
+.env.*
+!.env.example

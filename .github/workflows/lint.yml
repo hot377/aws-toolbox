@@ -1,0 +1,70 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  RUFF_VERSION: "0.17.6"
+  GITLEAKS_VERSION: "8.30.1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # gitleaks で履歴全体を走査するため
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Install tools
+        run: |
+          pip install "ruff==${RUFF_VERSION}" pyyaml
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "${RUNNER_TEMP}" gitleaks
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      - name: Check JSON syntax
+        run: |
+          git ls-files -z '*.json' | xargs -0 -r -n1 python -m json.tool > /dev/null
+
+      - name: Check YAML syntax
+        run: |
+          git ls-files -z '*.yml' '*.yaml' \
+            | xargs -0 -r -n1 python -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))'
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform validate
+        run: |
+          # .tf を含むフォルダごとに init(バックエンドなし)と validate を行う
+          git ls-files '*.tf' | xargs -r -n1 dirname | sort -u | while read -r dir; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false -input=false
+            terraform -chdir="${dir}" validate
+            echo "::endgroup::"
+          done
+
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+      - name: ruff format
+        run: ruff format --check --diff .
+
+      - name: gitleaks
+        run: gitleaks git --redact --verbose .
