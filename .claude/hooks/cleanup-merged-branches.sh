@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
-# UserPromptSubmit で、プロンプトに「マージ」を含むときにマージ済みブランチを掃除する。
-#   1. main に切り替えて git pull --rebase で最新化する
-#   2. PR がマージ済み、かつローカルの先頭コミットが PR の最終コミットと一致するブランチだけを
+# マージ済みブランチを掃除する。次のどちらかのときに動く。
+#   - UserPromptSubmit: プロンプトに「マージ」を含むとき(ユーザーが GitHub 上でマージした場合)
+#   - PostToolUse(Bash): Claude が gh pr merge を実行したとき
+# 処理内容:
+#   1. PR がマージ済み、かつローカルの先頭コミットが PR の最終コミットと一致するブランチだけを
 #      リモートとローカルから削除する(マージ後に追加したコミットがあるブランチは残す)
+#   2. main を git pull --rebase で最新化する
 # 結果は additionalContext で Claude に伝える。
 set -uo pipefail
 
-prompt="$(python3 -c 'import json, sys; print(json.load(sys.stdin).get("prompt", ""))')"
-[[ "${prompt}" == *マージ* ]] || exit 0
+# イベント名とトリガーの判定に使う文字列を取り出す(改行区切りで 2 行出力)
+{
+  read -r event
+  IFS= read -r trigger
+} < <(python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+cmd = (d.get("tool_input") or {}).get("command", "")
+print(d.get("hook_event_name", ""))
+print((d.get("prompt") or cmd).replace("\n", " "))
+')
+
+case "${event}" in
+  UserPromptSubmit) [[ "${trigger}" == *マージ* ]] || exit 0 ;;
+  PostToolUse) [[ "${trigger}" == *"gh pr merge"* ]] || exit 0 ;;
+  *) exit 0 ;;
+esac
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 command -v gh >/dev/null 2>&1 || exit 0
@@ -43,6 +61,6 @@ else
 fi
 
 [[ ${#log[@]} -gt 0 ]] || exit 0
-python3 -c 'import json, sys; print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "ブランチ掃除 hook の結果:\n" + "\n".join(sys.argv[1:])}}, ensure_ascii=False))' \
-  "${log[@]}"
+python3 -c 'import json, sys; print(json.dumps({"hookSpecificOutput": {"hookEventName": sys.argv[1], "additionalContext": "ブランチ掃除 hook の結果:\n" + "\n".join(sys.argv[2:])}}, ensure_ascii=False))' \
+  "${event}" "${log[@]}"
 exit 0

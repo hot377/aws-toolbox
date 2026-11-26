@@ -43,4 +43,5 @@ AWS で「そのまま使える」コード(Terraform、JSON、スクリプト�
 - Claude Code の hook(`.claude/settings.json`、スクリプトは `.claude/hooks/`)
   - 書き込み前: アカウント ID、プレースホルダーでない ARN、アクセスキーを検出してブロックする
   - 書き込み後: JSON / Python の構文、`bash -n`、`terraform fmt` を実行する
-  - プロンプトに「マージ」を含むとき: マージ済みブランチをリモートとローカルから削除し、main を最新化する
+  - プロンプトに「マージ」を含むとき、または `gh pr merge` の実行後: マージ済みブランチをリモートとローカルから削除し、main を最新化する
+- PR をマージするときは `gh pr merge <番号> --squash` だけを実行し、ブランチの削除と main の最新化は hook に任せる
